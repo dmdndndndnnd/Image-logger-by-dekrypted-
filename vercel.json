@@ -1,7 +1,1 @@
-{
-  "functions": {
-    "api/main.py": {
-      "runtime": "now-python@3.9"
-    }
-  }
-}
+{}
